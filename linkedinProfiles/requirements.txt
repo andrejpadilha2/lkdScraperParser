@@ -1,0 +1,10 @@
+requests
+bs4
+google-api-python-client
+python-dotenv
+nameparser
+selenium
+chromedriver-binary==108.0.5359.71.0
+# scrapy
+# scrapeops-scrapy
+# scrapeops-scrapy-proxy-sdk
