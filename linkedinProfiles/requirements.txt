@@ -3,8 +3,12 @@ bs4
 google-api-python-client
 python-dotenv
 nameparser
+unidecode
 selenium
 chromedriver-binary==108.0.5359.71.0
+torrequest
+webdriver-manager
+pickle
 # scrapy
 # scrapeops-scrapy
 # scrapeops-scrapy-proxy-sdk
