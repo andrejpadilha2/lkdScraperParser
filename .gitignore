@@ -3,3 +3,5 @@
 __pycache__/
 profiles*
 linkedinProfiles/utils/names_list.txt
+*.csv
+names_list*

@@ -2,6 +2,9 @@ import os
 from googleapiclient.discovery import build
 from unidecode import unidecode
 import re
+from stem import Signal
+from stem.control import Controller
+import time
 
 ### FUNCTIONS ###
 #################
@@ -20,9 +23,9 @@ def google_search(search_term, api_key, cse_id, **kwargs):
 def create_folder(folder_name):
     if not os.path.exists(folder_name):
         os.makedirs(folder_name)
-        print(f"Created folder: {folder_name}")
+        print(f"Created folder: {folder_name}.\n")
     else:
-        print(f"Folder already exists: {folder_name}")
+        print(f"Folder already exists: {folder_name}.\n")
 
 def normalize_string(input_string):
     # Remove accents
@@ -35,3 +38,17 @@ def normalize_string(input_string):
     normalized_string = normalized_string.lower()
 
     return normalized_string
+
+
+def sleep(seconds, message=None):
+    if message:
+        print(message)
+        time.sleep(seconds)
+    else:
+        time.sleep(seconds)
+
+# signal TOR for a new connection 
+def renew_connection():
+    with Controller.from_port(port = 9051) as controller:
+        controller.authenticate(password="xxxx")
+        controller.signal(Signal.NEWNYM)

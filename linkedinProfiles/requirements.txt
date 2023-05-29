@@ -9,6 +9,7 @@ chromedriver-binary==108.0.5359.71.0
 torrequest
 webdriver-manager
 pickle
+httpx
 # scrapy
 # scrapeops-scrapy
 # scrapeops-scrapy-proxy-sdk
