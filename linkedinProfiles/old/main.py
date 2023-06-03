@@ -4,7 +4,7 @@ import random
 from dotenv import load_dotenv
 import requests
 from utils.generate_name_variations import generate_name_variations
-from utils.save_cookies import get_cookies
+from linkedinProfiles.old.utisl.save_cookies import get_cookies
 from utils.methods import *
 
 def run_scrapper(save_path, use_cookies=True, tor=False):   
