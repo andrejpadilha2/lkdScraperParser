@@ -7,28 +7,64 @@ from selenium_stealth import stealth
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
+from bs4 import BeautifulSoup
 from utils.generate_name_variations import generate_name_variations
 from utils.methods import *
 import pandas as pd
 import numpy as np
 import sys
+import json
+
+def check_name_subset(linkedin_link_title, full_name):
+    hyphen_index = linkedin_link_title.index('-')
+
+    names_in_linkedin_link = linkedin_link_title[:hyphen_index]
+    names_in_linkedin_link = [normalize_string(name) for name in names_in_linkedin_link]
+
+    names_in_full_name = full_name.split()
+    names_in_full_name = [normalize_string(name) for name in names_in_full_name]
+
+    is_subset = set(names_in_linkedin_link) <= set(names_in_full_name)
+    
+    return is_subset
+
+def check_studied_at_universities(page_source, universities_to_check):
+    soup = BeautifulSoup(page_source, 'html.parser')
+
+    # Find the script tag containing the JSON-LD data
+    education_items = soup.find_all('li', class_='education__list-item')
+
+    if education_items:
+
+        universities_studied = []
+        for item in education_items:
+            university_element = item.find('h3', class_='profile-section-card__title')
+            university = university_element.text.strip() if university_element else None
+            universities_studied.append(university)
+
+        for university_to_check in universities_to_check:
+            for university_studied in universities_studied:
+                if university_to_check in university_studied:
+                    return True
+
+    return False
 
 def check_page_problems(page_source):
     problems = ""
     success = 1
 
     if "authwall" in page_source:
-        print("You hit the authentication wall!")
+        print("→ You hit the authentication wall!")
         problems = "authwall_"
         success = 0
 
     if "captcha" in page_source:
-        print("You hit a captcha page!")
+        print("→ You hit a captcha page!")
         problems += "captcha_"
         success = 0
 
     if page_source.startswith("<html><head>\n    <script type=\"text/javascript\">\n"):
-        print("You hit javascript obfuscated code!")
+        print("→ You hit javascript obfuscated code!")
         problems += "obfuscatedJS_"
         success = 0
     
@@ -69,118 +105,136 @@ def search_linkedin_profiles(linkedin_profiles_df, save_path, filename):
         print("\n\n\n****************************************************************")
         print(f"Trying to find LinkedIn profile of {row['full_name']}\n")
 
-        full_path = f"{save_path}/{normalize_string(row['full_name'])}"
+        full_path = f"{save_path}/{row['name_id']}_{normalize_string(row['full_name'])}"
         create_folder(full_path)
 
         print("\n---------------------------------------------")
         print(f"Iter {iter}/{total_name_variations} - Testing name variation #{index}: {row['name_variation']}")
         
 
-        if pd.isna(row['scrapped_success_time']):
+        if not pd.isna(row['scrapped_success_time']):
+            print("→ Name variation was already scrapped, skipping...")
+        else:
             driver = initialize_webdriver()
-            sleep(random.uniform(1, 2))
-            driver.get('https://www.google.com.br')
-            sleep(random.uniform(1, 2))
+            sleep(1, '→ sleeping 1 second...')
 
-            search_box = driver.find_element(By.NAME, 'q')
+            print("→ Requesting 'www.google.com.br'.")
+            driver.get('https://www.google.com.br')
+            sleep(random.uniform(1, 2), '→ sleeping between 1 and 2 seconds...')
+
             search_query = f"{row['name_variation']} ufabc linkedin"
+
+            print("→ Searching on Google.")
+            search_box = driver.find_element(By.NAME, 'q')
             search_box.send_keys(search_query)
-            # for char in search_query:
-            #     search_box.send_keys(char)
-            #     delay = random.uniform(0.1, 0.3)
-            #     sleep(delay)
             search_box.send_keys(Keys.RETURN)
-            sleep(random.uniform(3, 5), 'sleeping between 3 and 5 seconds...')
+            sleep(random.uniform(2, 3), '→ sleeping between 2 and 3 seconds...')
 
             links = driver.find_elements(By.TAG_NAME, 'a')
             linkedin_links = [link for link in links if link.get_attribute('href') and 'linkedin.com/in/' in link.get_attribute('href')]
 
-            if linkedin_links:
-                # TODO
-                # 1) check if the link that I am about to click was already scrapped
-                # 2) check if the person studied at UFABC
+            if linkedin_links:               
+                linkedin_url = linkedin_links[0].get_attribute('href').split("?")[0] # we only consider the first linkedin profile (should we?)
 
+                url_already_scrapped = linkedin_profiles_df['linkedin_url'].str.contains(linkedin_url, na=False).any()
 
-                linkedin_links[0].click()
-                total_requests += 1
-                sleep(random.uniform(5, 7), 'sleeping between 5 and 7 seconds...')
+                if url_already_scrapped:
+                    print(f"→ A profile was already scrapped using the URL {linkedin_url}, replicating data and skipping...")
 
-                page_source = driver.page_source
-                problems, success = check_page_problems(page_source) 
-                # TODO
-                # If it's the xth unsucessful reply in a row, do something
+                    same_url_index = linkedin_profiles_df['linkedin_url'].str.contains(linkedin_url, na=False).idxmax()
+                    linkedin_profiles_df.at[index, 'linkedin_url'] = linkedin_profiles_df.at[same_url_index, 'linkedin_url']
+                    linkedin_profiles_df.at[index, 'scrapped_success_time'] = linkedin_profiles_df.at[same_url_index, 'scrapped_success_time']
+                    linkedin_profiles_df.at[index, 'failed_reason'] = linkedin_profiles_df.at[same_url_index, 'failed_reason']
+                    linkedin_profiles_df.at[index, 'html_path'] = linkedin_profiles_df.at[same_url_index, 'html_path']
 
-                if success:
-                    print("Successful request!")
-                    successful_requests += 1
-                    linkedin_profiles_df.at[index, 'linkedin_profile'] = driver.current_url
-                    
-                    linkedin_profiles_df.at[index, 'scrapped_success_time'] = datetime.now()
-
-                    # num_steps = random.randint(2, 4)
-                    # scroll_height = driver.execute_script("return document.body.scrollHeight")
-                    # scroll_step = scroll_height / num_steps
-
-                    # for _ in range(num_steps):
-                    #     driver.execute_script(f"window.scrollBy(0, {scroll_step})")
-                    #     delay = random.uniform(3, 6)
-                    #     sleep(delay)
-                    # sleep(random.uniform(1, 2), 'sleeping between 1 and 2 seconds...')
+                    linkedin_profiles_df.to_csv(filename, index=False, sep=',')
                 else:
-                    print("Failed request!")
-                    if pd.isna(linkedin_profiles_df.at[index, 'failed_reason']):
-                        linkedin_profiles_df.at[index, 'failed_reason'] = f"({problems})"
+                    # TODO
+                    # 1) Check if the name of the person in the linkedin link is a subset of the full name of the person
+                    linkedin_link_title = linkedin_links[0].text.split()
+                    is_subset = check_name_subset(linkedin_link_title, row['full_name'])
+
+                    if not is_subset:
+                        print(f"→ Names of Linkedin profile are not a subset of real full name, skipping...")
+                        linkedin_profiles_df.at[index, 'failed_reason'] = f"(no_linkedin_url)"
+                        linkedin_profiles_df.at[index, 'scrapped_success_time'] = datetime.now()
                     else:
-                        previous_failed_reason = linkedin_profiles_df.at[index, 'failed_reason'].strip("()")
-                        linkedin_profiles_df.at[index, 'failed_reason'] = f"({previous_failed_reason};{problems})"
-                              
+                        print(f"→ Requesting '{linkedin_url}'.")
+                        linkedin_links[0].click()
+                        total_requests += 1
+                        sleep(random.uniform(5, 7), '→ sleeping between 5 and 7 seconds...')
 
-                HtmlPath = f"{full_path}/{index}_{normalize_string(row['name_variation'])}_{problems}.html"
-                print(f"- saving HTML to: {HtmlPath}")
-                with open(HtmlPath, 'w', encoding='utf-8') as file:
-                    file.write(page_source)
+                        page_source = driver.page_source
+                        problems, success = check_page_problems(page_source) 
+                        # TODO
+                        # If it's the xth unsucessful reply in a row, do something
 
-                linkedin_profiles_df.at[index, 'html_path'] = HtmlPath
-                linkedin_profiles_df.to_csv(filename, index=False, sep=',')
+                        if success:
+                            successful_requests += 1
 
-                print(f"So far {successful_requests} out of {total_requests} requests to Linkedin were successful.")
-            
-                sleep(15, 'sleeping 15 seconds...')
-                iter_time = timer() - start_iter_time
-                print(f"Iteration elapsed time: {iter_time:.2f}")
+                            studied_at_ufabc = check_studied_at_universities(page_source, ['UFABC', 'Universidade Federal do ABC'])
+
+                            if not studied_at_ufabc:
+                                print("→ Succesful request, but the person did not study at UFABC.")
+                                linkedin_profiles_df.at[index, 'failed_reason'] = f"(study_institution)"
+                            else:
+                                print("→ Successful request and the person studied at UFABC!")
+
+                            linkedin_profiles_df.at[index, 'linkedin_url'] = driver.current_url.split("?")[0]
+                            linkedin_profiles_df.at[index, 'scrapped_success_time'] = datetime.now()
+                                                
+                        else:
+                            print("→ Failed request!")
+                            if pd.isna(linkedin_profiles_df.at[index, 'failed_reason']):
+                                linkedin_profiles_df.at[index, 'failed_reason'] = f"({problems})"
+                            else:
+                                previous_failed_reason = linkedin_profiles_df.at[index, 'failed_reason'].strip("()")
+                                linkedin_profiles_df.at[index, 'failed_reason'] = f"({previous_failed_reason};{problems})"
+                                    
+                        HtmlPath = f"{full_path}/{index}_{normalize_string(row['name_variation'])}_{problems}.html"
+                        print(f"→ saving HTML to: '{HtmlPath}'.")
+                        with open(HtmlPath, 'w', encoding='utf-8') as file:
+                            file.write(page_source)
+
+                        linkedin_profiles_df.at[index, 'html_path'] = HtmlPath
+                        
+                        print(f"→ So far {successful_requests} out of {total_requests} requests to Linkedin were successful.")
+                        sleep(15, '→ sleeping 15 seconds...')
                 
             else:
-                print("No LinkedIn search results to access.")
+                print("→ No LinkedIn search results to access.")
+
                 if pd.isna(linkedin_profiles_df.at[index, 'failed_reason']):
                     linkedin_profiles_df.at[index, 'failed_reason'] = f"(no_linkedin_url)"
                 else:
                     previous_failed_reason = linkedin_profiles_df.at[index, 'failed_reason'].strip("()")
                     linkedin_profiles_df.at[index, 'failed_reason'] = f"({previous_failed_reason};no_linkedin_url)"
 
-            driver.close()
-        else:
-            print("Name variation was already scrapped, skipping...")
+                linkedin_profiles_df.at[index, 'linkedin_url'] = 'no_linkedin_url'
+                linkedin_profiles_df.at[index, 'scrapped_success_time'] = datetime.now()
 
-        iter += 1
-        
+            linkedin_profiles_df.to_csv(filename, index=False, sep=',')
+            driver.close()
+
+        iter_time = timer() - start_iter_time
+        print(f"→ Iteration elapsed time: {iter_time:.2f}")
         total_time = timer() - start_total_time
         print(f"Total elapsed time: {total_time:.2f}")
+        iter += 1
 
-        # print(linkedin_profiles_df[['name_variation', 'linkedin_profile', 'last_scrapped']])
     return total_requests, successful_requests, total_time
 
 if __name__ == "__main__":
     print("\nBEGINNING LINKEDIN SCRAPING\n")
-    save_path = 'people/profilesSelenium7'
+    save_path = 'people/profilesSelenium9'
     filename = f'{save_path}/linkedin_profiles.csv'
 
-    # Check if the file already exists
     if not os.path.exists(filename):
         create_folder(save_path)
         # Open the CSV file
         name_variations_df = pd.read_csv('people/name_variations.csv', sep=',')
         linkedin_profiles_df = name_variations_df
-        linkedin_profiles_df['linkedin_profile'] = ''
+        linkedin_profiles_df['linkedin_url'] = ''
         linkedin_profiles_df['scrapped_success_time'] = ''
         linkedin_profiles_df['failed_reason'] = ''
         linkedin_profiles_df['html_path'] = ''
@@ -198,7 +252,7 @@ if __name__ == "__main__":
                 'name_id': int,
                 'full_name': str,
                 'name_variation': str,
-                'linkedin_profile': str,
+                'linkedin_url': str,
                 'failed_reason': str,
                 'html_path': str
             }
