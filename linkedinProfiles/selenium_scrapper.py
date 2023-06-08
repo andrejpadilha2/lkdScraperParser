@@ -149,8 +149,6 @@ def search_linkedin_profiles(linkedin_profiles_df, save_path, filename):
 
                     linkedin_profiles_df.to_csv(filename, index=False, sep=',')
                 else:
-                    # TODO
-                    # 1) Check if the name of the person in the linkedin link is a subset of the full name of the person
                     linkedin_link_title = linkedin_links[0].text.split()
                     is_subset = check_name_subset(linkedin_link_title, row['full_name'])
 
