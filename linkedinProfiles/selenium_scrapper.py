@@ -40,6 +40,8 @@ def check_name_subset(linkedin_link_title, full_name):
     return is_subset
 
 def check_studied_at_universities(page_source, universities_to_check):
+    # TODO:
+    # normalize the names when comparing, some people write "Universidade federal do Abc"
     soup = BeautifulSoup(page_source, 'html.parser')
 
     # Find the script tag containing the JSON-LD data
@@ -85,7 +87,7 @@ def initialize_webdriver():
     options = webdriver.ChromeOptions()
     # options.add_argument("start-maximized")
     options.add_argument('--blink-settings=imagesEnabled=false')
-    # options.add_argument("--headless")
+    options.add_argument("--headless")
     options.add_experimental_option("excludeSwitches", ["enable-automation"])
     options.add_experimental_option('useAutomationExtension', False)
     driver = webdriver.Chrome(options=options)
@@ -112,7 +114,19 @@ def search_linkedin_profiles(linkedin_profiles_df, save_path, filename):
     start_total_time = timer()
 
     iter = 1
+
+    driver = initialize_webdriver()
+
     for row in linkedin_profiles_df.itertuples():
+
+        if total_linkedin_requests % 20 == 0 and total_linkedin_requests != 0: # restart webdriver
+            print("\n\n\n========================")
+            print(f"Restarting web browser.")
+            print("========================\n\n\n")
+
+            driver.close()
+            driver = initialize_webdriver()
+
         start_iter_time = timer()
 
         print("\n\n\n****************************************************************")
@@ -124,21 +138,21 @@ def search_linkedin_profiles(linkedin_profiles_df, save_path, filename):
         print("\n---------------------------------------------")
         print(f"Iter {iter}/{total_name_variations} - Testing name variation #{row.uid}: {row.name_variation}")
 
-        if row.to_scrape == 0:  
-            # 0 = FALSE 
-            # TODO
-            # change the messages below
+        print(row.failed_cause)
+
+        if row.to_scrape == 0 or not pd.isna(row.failed_cause):  
             if row.scraped_success_time:
                 print("→ Name was already scraped, skipping...")
             else:
-                print(f"→ Last Google search resulted in {row.failed_reason}, skipping...")
+                print(f"→ Last Google search resulted in {row.failed_cause}, skipping...")
         
         else:
             # 1 = TRUE
 
-            driver = initialize_webdriver()
             sleep(2, '→ sleeping 2 seconds...')
 
+            # TODO:
+            # handle the exception: selenium.common.exceptions.WebDriverException: Message: unknown error: net::ERR_NAME_NOT_RESOLVED
             print("→ Requesting 'www.google.com.br'.")
             driver.get('https://www.google.com.br')
             sleep(random.uniform(2, 3), '→ sleeping between 2 and 3 seconds...')
@@ -158,6 +172,10 @@ def search_linkedin_profiles(linkedin_profiles_df, save_path, filename):
 
             # Select only the links whose profile name is a subset of the full name
             linkedin_links = [link for link in linkedin_links if check_name_subset(link.text.split(), row.full_name)] 
+            # TODO:
+            # when we enter the webpage of that person, the name CAN BE DIFFERENT from what appeared on google search result!!!!!!
+            # I need to handle this!!!
+            # Example: name variation #1065, her name in the english profile is different than her name in the portuguese profile!!!!
 
             for link_idx, link in enumerate(linkedin_links):
                 # Great, we found some Linkedin profiles to analyze!
@@ -187,7 +205,6 @@ def search_linkedin_profiles(linkedin_profiles_df, save_path, filename):
                     # We will attempt to scrape it a few times.
                     for attempt in range(2):
                         print(f"→ Requesting '{linkedin_url}'.")
-                        # TODO: correct the bug when the page returns (attempt #2 and the link doesn't exist anymore)
                         link.click()
                         total_linkedin_requests += 1
                         sleep(random.uniform(5, 7), '→ sleeping between 5 and 7 seconds...')
@@ -211,8 +228,14 @@ def search_linkedin_profiles(linkedin_profiles_df, save_path, filename):
 
                             if not studied_at_ufabc:
                                 print("→ Succesful request, but the person did not study at UFABC.")
-                                linkedin_profiles_df.loc[linkedin_profiles_df.loc[:, 'uid'] == row.uid, 'failed_cause'] = f"(no_school_relationship)" # TODO: strange name and might need to add the failed cause to a list of previous failed causes
+                                linkedin_profiles_df.loc[linkedin_profiles_df.loc[:, 'uid'] == row.uid, 'failed_cause'] = f"(no_school_relationship)" 
+                                # TODO: strange name and might need to add the failed cause to a list of previous failed causes
                             else:
+                                # TODO:
+                                # if it's the full name variation, we don't want to scrape any other name variations for that name
+                                # because all other name variations are less specific than the full name, 
+                                # hence they will bring more results which are LESS relevant!
+
                                 print("→ Successful request and the person studied at UFABC!")
                                 # linkedin_profiles_df.loc[linkedin_profiles_df.loc[:, 'name_id'] == row.name_id, 'to_scrape'] = 0 didn't work as I expected
 
@@ -257,7 +280,6 @@ def search_linkedin_profiles(linkedin_profiles_df, save_path, filename):
                 add_failed_cause(linkedin_profiles_df, row.uid, 'no_linkedin_url')
 
             linkedin_profiles_df.to_csv(filename, index=False, sep=',')
-            driver.close()
 
         iter_time = timer() - start_iter_time
         print(f"→ Iteration elapsed time: {iter_time:.2f}")
@@ -265,11 +287,13 @@ def search_linkedin_profiles(linkedin_profiles_df, save_path, filename):
         print(f"Total elapsed time: {total_time:.2f}")
         iter += 1
 
+    driver.close()
+
     return total_linkedin_requests, successful_linkedin_requests, total_profiles_scraped, successful_profiles_scraped, total_time
 
 if __name__ == "__main__":
     print("\nBEGINNING LINKEDIN SCRAPING\n")
-    save_path = 'people/profilesSelenium10'
+    save_path = 'people/profilesSelenium12'
     filename = f'{save_path}/linkedin_profiles.csv'
 
     if not os.path.exists(filename):
@@ -279,7 +303,7 @@ if __name__ == "__main__":
         linkedin_profiles_df = name_variations_df
 
         linkedin_profiles_df['to_scrape'] = 1 # will track if it's still necessary to scrape this name variation
-            # 0 will be False, 1 will be True, 2 will be Skip (it will turn into 0 again when all name variations are tested)
+            # 0 will be False, 1 will be True
             # initially all name variations are going to be scraped, so they are naturally 1
 
         linkedin_profiles_df['linkedin_url'] = '' # stores linkedin_url
@@ -312,7 +336,7 @@ if __name__ == "__main__":
                 'html_path': str
             }
     linkedin_profiles_df = pd.read_csv(filename, sep=',', dtype=dtypes, parse_dates=['scraped_success_time'])
-    linkedin_profiles_df['to_scrape'] = linkedin_profiles_df['to_scrape'].replace(2, 0) # since we are beginning to scrape again, we can try to scrape the profiles marked with "Skip" again
+    # linkedin_profiles_df['to_scrape'] = linkedin_profiles_df['to_scrape'].replace(2, 0) # since we are beginning to scrape again, we can try to scrape the profiles marked with "Skip" again
 
     total_linkedin_requests, successful_linkedin_requests, \
     total_profiles_scraped, successful_profiles_scraped, \
