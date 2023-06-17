@@ -1,22 +1,27 @@
 from bs4 import BeautifulSoup
+import pandas as pd
 
 def add_education_record(education_data, person_id, school_id, education_df):
-    # Create a new dictionary with education data, person_id and school_id
-    education = {
-        'person_id': person_id,
-        'school_id': school_id,
-        'degree': education_data['degree'],
-        'field_of_study': education_data['field_of_study'],
-        'start_date': education_data['start_date'],
-        'end_date': education_data['end_date'],
-        'description': education_data['description'],
-        'grade': education_data['grade'],
-        'activities_societies': education_data['activities_societies'],}
+    # Create a new dictionary with education data, person_id, and school_id
+    person_education = {
+        'person_id': [person_id],
+        'school_id': [school_id],
+        'degree': [education_data['degree']],
+        'field_of_study': [education_data['field_of_study']],
+        'start_date': [education_data['start_date']],
+        'end_date': [education_data['end_date']],
+        'description': [education_data['description']],
+        'grade': [education_data['grade']],
+        'activities_societies': [education_data['activities_societies']]
+    }
     
-    # Append the new education record to the DataFrame
-    education_df = education_df.append(education, ignore_index=True)
+    # Convert the new education dictionary into a DataFrame
+    person_education_df = pd.DataFrame(person_education)
 
-    # return updated education_df
+    # Concatenate the new education DataFrame with the existing education_df
+    education_df = pd.concat([education_df, person_education_df], ignore_index=True)
+
+    # Return the updated education_df
     return education_df
 
 def extract_education_info(page_source):
@@ -72,8 +77,15 @@ def extract_education_info(page_source):
                     start_date = None
                     end_date = None
 
-            description_element = item.find('div', class_='show-more-less-text')
-            description = description_element.text.strip() if description_element else None
+            # Extract the description (if available)
+            description = None
+            description_big = item.find('p', class_='show-more-less-text__text--more')
+            if description_big:
+                description = description_big.get_text(strip=True).replace('Exibir menos', '')
+            else:
+                description_small = item.find('p', class_='show-more-less-text__text--less')
+                if description_small:
+                    description = description_small.get_text(strip=True).replace('Exibir mais', '')
 
             activities_societies_element = item.find('p', class_='education__item--activities-and-societies')
             activities_societies = activities_societies_element.text.strip() if activities_societies_element else None
@@ -88,6 +100,5 @@ def extract_education_info(page_source):
                 'description': description,
                 'grade': grade,
                 'activities_societies': activities_societies})
-
 
     return educations
