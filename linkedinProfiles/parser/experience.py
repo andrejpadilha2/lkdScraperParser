@@ -1,20 +1,25 @@
 from bs4 import BeautifulSoup
+import pandas as pd
 
 def add_experience_record(experience_data, person_id, company_id, experience_df):
-    # Create a new dictionary with education data, person_id and company_id
-    experience = {
-        'person_id': person_id,
-        'company_id': company_id,
-        'role': experience_data['role'],
-        'location': experience_data['location'],
-        'start_date': experience_data['start_date'],
-        'end_date': experience_data['end_date'],
-        'description': experience_data['description']}
-        
-    # Append the new education record to the DataFrame
-    experience_df = experience_df.append(experience, ignore_index=True)
+    # Create a new dictionary with experience data, person_id, and company_id
+    person_experience_dict = {
+        'person_id': [person_id],
+        'company_id': [company_id],
+        'role': [experience_data['role']],
+        'location': [experience_data['location']],
+        'start_date': [experience_data['start_date']],
+        'end_date': [experience_data['end_date']],
+        'description': [experience_data['description']]
+    }
+    
+    # Convert the new experience dictionary into a DataFrame
+    person_experience_df = pd.DataFrame(person_experience_dict)
 
-    # return updated experience_df
+    # Concatenate the new experience DataFrame with the existing experience_df
+    experience_df = pd.concat([experience_df, person_experience_df], ignore_index=True)
+
+    # Return the updated experience_df
     return experience_df
 
 def extract_professional_experience(page_source):
