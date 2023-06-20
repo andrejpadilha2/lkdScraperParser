@@ -1,6 +1,6 @@
 import csv
 
-from utils.generate_name_variations import generate_name_variations
+from general_utils.generate_name_variations import generate_name_variations
 
 # Read the names from the file
 with open('people/names_list.txt', 'r') as file:
