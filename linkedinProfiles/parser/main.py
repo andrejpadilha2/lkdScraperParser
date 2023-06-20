@@ -10,19 +10,21 @@ from .person import extract_person_info
 from .utils import get_or_add_id
 
 from .config import LINKEDIN_PROFILES_COLUMNS, PERSON_COLUMNS, SCHOOL_COLUMNS, EDUCATION_COLUMNS, COMPANY_COLUMNS, EXPERIENCE_COLUMNS
-from .config import BASE_PATH, LINKEDIN_PROFILES_PATH, PERSON_PATH, SCHOOL_PATH, EDUCATION_PATH, COMPANY_PATH, EXPERIENCE_PATH
+from .config import DATA_PATH, LINKEDIN_PROFILES_PATH, PERSON_PATH, SCHOOL_PATH, EDUCATION_PATH, COMPANY_PATH, EXPERIENCE_PATH
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
 
 
 def process_row(row, person_df, school_df, education_df, company_df, experience_df) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+
     """Processes a single row of LinkedIn profile data."""
     if pd.isna(row.html_path):
         return None
     info_text = f"\n\n*******************************************************\nParsing HTML file of name #{row.name_id}, variation #{row.uid}: {row.name_variation}.\n\n"
     logging.info(info_text)
-    with open(row.html_path, "r") as f:
+    html_path = DATA_PATH / row.html_path
+    with open(html_path, "r") as f:
         page_source = f.read()
 
     # Public person data
@@ -95,8 +97,8 @@ def main():
     experience_df.to_csv(EXPERIENCE_PATH, index=False, sep=',')
 
 if __name__ == "__main__":
-    print(f"Current BASE_PATH: {BASE_PATH}")
-    user_input = input("Is this the correct BASE_PATH? Type 'yes' to continue or any other key to cancel: ")
+    print(f"Current DATA_PATH: {DATA_PATH}")
+    user_input = input("Is this the correct DATA_PATH? Type 'yes' to continue or any other key to cancel: ")
     if user_input.lower() != 'yes':
         print("Operation canceled.")
         sys.exit(1)

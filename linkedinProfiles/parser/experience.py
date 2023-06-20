@@ -38,7 +38,8 @@ def extract_professional_experience(page_source):
             # Iterate over each experience item
             for item in experience_items:
                 # Extract the role name
-                role = item.find('h3', class_='profile-section-card__title').text.strip()
+                role_item = item.find('h3', class_='profile-section-card__title')
+                role = role_item.text.strip() if role_item else None
 
                 
                 # Extract the location (if available)

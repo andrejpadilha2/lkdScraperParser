@@ -5,11 +5,14 @@ def extract_person_info(page_source):
 
     identification_list = soup.find('section', class_='top-card-layout')
 
-    name = identification_list.find('h1', class_='top-card-layout__title').text.strip()
+    name_item = identification_list.find('h1', class_='top-card-layout__title')
+    name = name_item.text.strip() if name_item else None
 
-    headline = identification_list.find('h2', class_='top-card-layout__headline').text.strip()
+    headline_item = identification_list.find('h2', class_='top-card-layout__headline')
+    headline = headline_item.text.strip() if headline_item else None
 
-    location = identification_list.find('div', class_='top-card__subline-item').text.strip()
+    location_item = identification_list.find('div', class_='top-card__subline-item')
+    location = location_item.text.strip() if location_item else None
 
     followers_item = identification_list.find('span', class_='top-card__subline-item')
     followers = followers_item.text.strip() if followers_item else None

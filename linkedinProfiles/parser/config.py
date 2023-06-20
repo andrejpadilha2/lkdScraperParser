@@ -1,13 +1,20 @@
+from pathlib import Path
+
+profiles_folder_name = 'profilesSelenium12'  # << change only this!!!
+
+
+
 # Base path
-BASE_PATH = 'data/linkedin_profiles/profilesSelenium11_og_namesake/'
+BASE_PATH = Path(__file__).resolve().parent.parent
+DATA_PATH = BASE_PATH / 'data' / 'linkedin_profiles' / profiles_folder_name
 
 # File paths
-LINKEDIN_PROFILES_PATH = BASE_PATH + 'linkedin_profiles.csv'
-PERSON_PATH = BASE_PATH + 'person.csv'
-SCHOOL_PATH = BASE_PATH + 'school.csv'
-EDUCATION_PATH = BASE_PATH + 'education.csv'
-COMPANY_PATH = BASE_PATH + 'company.csv'
-EXPERIENCE_PATH = BASE_PATH + 'experience.csv'
+LINKEDIN_PROFILES_PATH = DATA_PATH / 'linkedin_profiles.csv'
+PERSON_PATH = DATA_PATH / 'person.csv'
+SCHOOL_PATH = DATA_PATH / 'school.csv'
+EDUCATION_PATH = DATA_PATH / 'education.csv'
+COMPANY_PATH = DATA_PATH / 'company.csv'
+EXPERIENCE_PATH = DATA_PATH / 'experience.csv'
 
 # Column definitions
 
