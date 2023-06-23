@@ -40,7 +40,7 @@ def normalize_string(input_string):
     return normalized_string
 
 
-def sleep(seconds, message=None):
+def sleep_print(seconds, message=None):
     if message:
         print(message)
         time.sleep(seconds)
