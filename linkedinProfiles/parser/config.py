@@ -1,12 +1,12 @@
 from pathlib import Path
 
-profiles_folder_name = 'profilesSelenium12'  # << change only this!!!
+PROFILES_FOLDER_NAME = 'profilesSelenium12'  # << change only this!!!
 
 
 
 # Base path
 BASE_PATH = Path(__file__).resolve().parent.parent
-DATA_PATH = BASE_PATH / 'data' / 'linkedin_profiles' / profiles_folder_name
+DATA_PATH = BASE_PATH / 'data' / 'linkedin_profiles' / PROFILES_FOLDER_NAME
 
 # File paths
 LINKEDIN_PROFILES_PATH = DATA_PATH / 'linkedin_profiles.csv'
