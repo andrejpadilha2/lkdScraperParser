@@ -4,7 +4,7 @@ import sys
 
 import pandas as pd
 
-from .education import extract_education_info, add_education_record
+from .education import extract_education_list, add_education_record
 from .experience import extract_professional_experience, add_experience_record
 from .person import extract_person_info
 from .utils import get_or_add_id
@@ -35,7 +35,7 @@ def process_row(row, person_df, school_df, education_df, company_df, experience_
     person_id, person_df = get_or_add_id(person_info, person_df, 'name_variation', 'person_id')
 
     # Education data
-    educations = extract_education_info(page_source)
+    educations = extract_education_list(page_source)
     for education in educations:
         school = {
             'name': education['school_name'],
