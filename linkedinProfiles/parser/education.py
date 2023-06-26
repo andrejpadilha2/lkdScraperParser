@@ -24,14 +24,17 @@ def add_education_record(education_data, person_id, school_id, education_df):
     # Return the updated education_df
     return education_df
 
+def get_education_list(soup):
+    return soup.find_all('li', class_='education__list-item')
+
 def parse_school_name(education_item):
     school_element = education_item.find('h3', class_='profile-section-card__title')
     return school_element.text.strip() if school_element else ""
 
-def parse_school_url(education_item):
+def parse_school_linkedin_url(education_item):
     school_element = education_item.find('h3', class_='profile-section-card__title')
     a_tag = school_element.find('a')
-    return a_tag['href'] if a_tag else ""
+    return a_tag['href'].split('?')[0] if a_tag else ""
 
 def parse_degree_info(education_item):
     degree_info_elements = education_item.find_all('span', class_='education__item--degree-info')
@@ -95,21 +98,16 @@ def parse_activities_societies(education_item):
     activities_societies_element = education_item.find('p', class_='education__item--activities-and-societies')
     return activities_societies_element.text.strip() if activities_societies_element else ""
 
-def get_education_list(soup):
-    return soup.find_all('li', class_='education__list-item')
-
 def extract_education_list(page_source):
     soup = BeautifulSoup(page_source, 'html.parser')
-
     education_list = get_education_list(soup)
 
     educations = []
     if len(education_list) > 0:
-
         for education_item in education_list:
             
             school_name = parse_school_name(education_item)
-            school_url = parse_school_url(education_item)
+            school_url = parse_school_linkedin_url(education_item)
             degree_info = parse_degree_info(education_item)
             degree = get_degree(degree_info)
             field_of_study = get_field_of_study(degree_info)

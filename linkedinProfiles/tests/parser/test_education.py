@@ -4,7 +4,7 @@ from pathlib import Path
 import json
 from bs4 import BeautifulSoup
 
-from ...parser.education import extract_education_list, get_degree, get_education_list, get_field_of_study, get_grade, parse_activities_societies, parse_degree_info, parse_description, parse_school_name, parse_school_url, parse_start_end_date
+from ...parser.education import extract_education_list, get_degree, get_education_list, get_field_of_study, get_grade, parse_activities_societies, parse_degree_info, parse_description, parse_school_name, parse_school_linkedin_url, parse_start_end_date
 
 class CustomTestResult(unittest.TextTestResult):
     def addSuccess(self, test):
@@ -49,11 +49,11 @@ class TestExtractEducationList(unittest.TestCase):
                 with self.subTest(profile=profile['file'], education_item=idx):
                     self.assertEqual(parsed_school_name, expected_school_name)
 
-    def test_parse_school_url(self):
+    def test_parse_school_linkedin_url(self):
         """Test if school URL is parsed correctly."""
         for profile in self.profiles:
             for idx, education_item in enumerate(profile['education_list']):
-                parsed_school_url = parse_school_url(education_item)
+                parsed_school_url = parse_school_linkedin_url(education_item)
                 expected_school_url = profile['data'][idx]['school_linkedin_url']
                 with self.subTest(profile=profile['file'], education_item=idx):
                     self.assertEqual(parsed_school_url, expected_school_url)
