@@ -87,7 +87,7 @@ def parse_description(education_item):
     description = ""
     description_big = education_item.find('p', class_='show-more-less-text__text--more')
     if description_big:
-        description = description_big.get_text(strip=True).replace('Exibir menos', '')
+        description = description_big.get_text(strip=True).replace('Exibir menos', '').replace('Show less', '')
     else:
         description_small = education_item.find('p', class_='show-more-less-text__text--less')
         if description_small:
