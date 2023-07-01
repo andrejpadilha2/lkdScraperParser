@@ -31,7 +31,8 @@ def extract_person_info(page_source):
     soup = BeautifulSoup(page_source, 'html.parser')
 
     identification_card = get_identification_card(soup)
-
+    #TODO: raise error when it's not a valid Linkedin profile
+    
     name = parse_linkedin_name(identification_card)
     headline = parse_headline(identification_card)
     location = parse_location(identification_card)

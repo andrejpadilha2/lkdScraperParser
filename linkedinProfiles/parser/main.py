@@ -5,7 +5,7 @@ import sys
 import pandas as pd
 
 from .education import extract_education_list, add_education_record
-from .experience import extract_professional_experience, add_experience_record
+from .experience import extract_experience_list, add_experience_record
 from .person import extract_person_info
 from .utils import get_or_add_id
 
@@ -45,7 +45,7 @@ def process_row(row, person_df, school_df, education_df, company_df, experience_
         education_df = add_education_record(education, person_id, school_id, education_df)
 
     # Professional experience data
-    experiences = extract_professional_experience(page_source)
+    experiences = extract_experience_list(page_source)
     for experience in experiences:
         company = {
             'name': experience['company_name'],
@@ -86,7 +86,7 @@ def main():
             if result is not None:
                 person_df, school_df, education_df, company_df, experience_df = result
         except Exception as e:
-            logging.error(f"Failed to process row {profile_row.Index}: {e}")
+            logging.error(f"Failed to process row {profile_row.Index}: {e}\nprofile_id: {profile_row.uid}, name_id: {profile_row.name_id}")
 
     print(education_df.dtypes)
 

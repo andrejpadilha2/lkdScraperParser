@@ -53,8 +53,8 @@ EDUCATION_COLUMNS = {
     'school_id': int,
     'degree': str,
     'field_of_study': str,
-    'start_date': str, # actually should be date
-    'end_date': str, # actually should be date
+    'start_date': str,
+    'end_date': str,
     'description': str,
     'grade': str,
     'activities_societies': str}
@@ -69,6 +69,6 @@ EXPERIENCE_COLUMNS = {
     'company_id': int,
     'role': str,
     'location': str,
-    'start_date': str, # actually should be date
-    'end_date': str, # actually should be date
+    'start_date': str,
+    'end_date': str,
     'description': str}
