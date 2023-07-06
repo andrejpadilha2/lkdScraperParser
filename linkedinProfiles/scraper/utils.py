@@ -1,11 +1,9 @@
 from bs4 import BeautifulSoup
 import pandas as pd
 
-from ..general_utils.methods import normalize_string, sleep_print
-from selenium import webdriver
-from selenium_stealth import stealth
-from selenium.webdriver.common.by import By
-from selenium.webdriver.common.keys import Keys
+from linkedinProfiles.parser.person import get_identification_card, parse_linkedin_name
+from ..general_utils.methods import normalize_string
+
 
 def add_failed_cause(linkedin_profiles_df, uid, new_failed_cause):
     df_index = linkedin_profiles_df['uid'] == uid
@@ -16,24 +14,34 @@ def add_failed_cause(linkedin_profiles_df, uid, new_failed_cause):
         previous_failed_cause = linkedin_profiles_df.loc[df_index, 'failed_cause'].str.strip("()")
         linkedin_profiles_df.loc[df_index, 'failed_cause'] = f"({previous_failed_cause.item()}; {new_failed_cause})"
 
-def check_name_subset(linkedin_link_title, full_name):
-    hyphen_index = len(linkedin_link_title)
-    if '-' in linkedin_link_title:
-        hyphen_index = linkedin_link_title.index('-')
+def is_subset(setA, setB):
+    return set(setA) <= set(setB)
 
-    names_in_linkedin_link = linkedin_link_title[:hyphen_index]
+def check_link_title_name_subset_full_name(linkedin_link_title, full_name):
+    title_divider = len(linkedin_link_title)
+    if '-' in linkedin_link_title:
+        title_divider = linkedin_link_title.index('-')
+    elif '|' in linkedin_link_title:
+        title_divider = linkedin_link_title.index('|')
+
+    names_in_linkedin_link = linkedin_link_title[:title_divider]
     names_in_linkedin_link = [normalize_string(name) for name in names_in_linkedin_link]
 
     names_in_full_name = full_name.split()
     names_in_full_name = [normalize_string(name) for name in names_in_full_name]
 
-    is_subset = set(names_in_linkedin_link) <= set(names_in_full_name)
-    
-    return is_subset
+    print(names_in_linkedin_link)
+    print(names_in_full_name)
+
+    return is_subset(names_in_linkedin_link, names_in_full_name)
+
+def check_profile_name_subset_full_name(page_source, full_name):
+    soup = BeautifulSoup(page_source, 'html.parser')
+    identification_card = get_identification_card(soup)
+    linkedin_name = parse_linkedin_name(identification_card)
+    return is_subset(normalize_string(linkedin_name), normalize_string(full_name))
 
 def check_studied_at_universities(page_source, universities_to_check):
-    # TODO:
-    # I am thinking more and more about removing this on scraping and maintaining it only on parsing or directly on cleaning
     soup = BeautifulSoup(page_source, 'html.parser')
 
     # Find the script tag containing the JSON-LD data
@@ -75,57 +83,34 @@ def get_page_problems(page_source):
     
     return success, problems
 
-def initialize_webdriver():
-    options = webdriver.ChromeOptions()
-    # options.add_argument("start-maximized")
-    options.add_argument('--blink-settings=imagesEnabled=false')
-    options.add_argument("--headless")
-    options.add_experimental_option("excludeSwitches", ["enable-automation"])
-    options.add_experimental_option('useAutomationExtension', False)
-    driver = webdriver.Chrome(options=options)
-    driver.implicitly_wait(60)
-    stealth(driver,
-            languages=["en-US", "en"],
-            vendor="Google Inc.",
-            platform="Win32",
-            webgl_vendor="Intel Inc.",
-            renderer="Intel Iris OpenGL Engine",
-            fix_hairline=True)
-    print("\n\n\n========================")
-    print(f"Initializing web browser.")
-    print("========================\n")
-    sleep_print(1, '→ Sleeping 2 seconds before maximizing the window...')
-    driver.maximize_window()
-    return driver
-
-def restart_browser(driver):
-    print("\n\n\n========================")
-    print(f"Restarting web browser.")
-    print("========================\n\n\n")
-
-    driver.close()
-    driver = initialize_webdriver()
-
-    return driver
-
 # TODO:
 # save the selenium find_element parameters in a config file, that way it's easier to configure the scraper if it changes
 # also create some custom exceptions to indicate that maybe the position/name of the elements have changed
-def search_google(driver, search_query):
-    print("→ Searching on Google.")
-    search_box = driver.find_element(By.NAME, 'q')
-    search_box.send_keys(search_query)
-    search_box.send_keys(Keys.RETURN)
-
-def get_valid_linkedin_links(driver, profile_full_name):
-    links = driver.find_elements(By.TAG_NAME, 'a')
+def get_valid_linkedin_link_elements(links, profile_full_name, unavailable_profiles, non_ufabc_student):
+    """ Returns a list of linkedin link elements that:
+    1) Are Linkedin profiles (linkedin.com/in/)
+    2) The name of person in the profile link title is a subset of the person's full name
+    3) Is an available profile
+    4) Isn't a non-ufabc student"""
 
     # Select only linkedin.com/in links (which are Linkedin profiles), and links whose profile name is a subset of the full name
-    linkedin_links = [link for link in links if link.get_attribute('href') 
-                      and ('linkedin.com/in/' in link.get_attribute('href')) 
-                      and check_name_subset(link.text.split(), profile_full_name)]
+    linkedin_link_elements = [link_element for link_element in links if 
+                              link_element.get_attribute('href')
+                              and ('linkedin.com/in/' in link_element.get_attribute('href'))
+                              and check_link_title_name_subset_full_name(link_element.text.split(), profile_full_name)
+                              and check_available_profile(link_element.get_attribute('href'), unavailable_profiles)
+                              and check_ufabc_student(link_element.get_attribute('href'), non_ufabc_student)]
 
-    return linkedin_links
+    return linkedin_link_elements
+
+def check_ufabc_student(link, non_ufabc_student):
+    """Returns True if link is a UFABC student profile or False otherwise"""
+    return not link in non_ufabc_student
+
+def check_available_profile(link, unavailable_profiles):
+    """Returns True if link is an available profile or False otherwise.
+    Unavailable profiles: list of profile links that are not available"""
+    return not link in unavailable_profiles
 
 def get_linkedin_url_id(link):
     linkedin_url = link.get_attribute('href')
@@ -140,12 +125,9 @@ def check_profile_already_scraped(link, linkedin_profiles_df, profile_linkedin_u
     
     return profile_already_scraped
 
-def click_link(driver, link, url):
-    print(f"→ Requesting '{url}'.")
-    link.click()
-    page_source = driver.page_source
-
-    return page_source
+def check_profile_availability(page_source):
+    """Returns true if profile is available or false otherwise"""
+    return not "page-not-found" in page_source
 
 def save_html(full_path, page_source, profile_uid, profile_name_variation, problems):
     html_path = f"{full_path}/{profile_uid}_{normalize_string(profile_name_variation)}_{problems}.html"
@@ -155,9 +137,13 @@ def save_html(full_path, page_source, profile_uid, profile_name_variation, probl
 
     return html_path
 
-def prepare_next_attempt(driver, linkedin_id):
-    print("→ Failed request but will attempt again now!")
-    driver.execute_script("window.history.go(-1)")
-    link = driver.find_element(By.CSS_SELECTOR, f'a[href*="{linkedin_id}"]')
-
-    return link
+def update_results(linkedin_profiles_df, uid, to_scrape, linkedin_url=None, scraped_success_time=None, html_path=None, failed_cause=None):
+    linkedin_profiles_df.loc[linkedin_profiles_df.loc[:, 'uid'] == uid, 'to_scrape'] = to_scrape
+    if linkedin_url is not None:
+        linkedin_profiles_df.loc[linkedin_profiles_df.loc[:, 'uid'] == uid, 'linkedin_url'] = linkedin_url
+    if scraped_success_time is not None:
+        linkedin_profiles_df.loc[linkedin_profiles_df.loc[:, 'uid'] == uid, 'scraped_success_time'] = scraped_success_time
+    if html_path is not None:
+        linkedin_profiles_df.loc[linkedin_profiles_df.loc[:, 'uid'] == uid, 'html_path'] = html_path
+    if failed_cause is not None:
+        add_failed_cause(linkedin_profiles_df, uid, failed_cause)
