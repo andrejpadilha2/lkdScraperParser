@@ -1,162 +1,31 @@
 import os
-import random
 from timeit import default_timer as timer
-from datetime import datetime
-
 import pandas as pd
 import sys
+import json
 
-from .utils import add_failed_cause, check_profile_already_scraped, check_studied_at_universities, click_link, get_linkedin_url_id, get_page_problems, get_valid_linkedin_links, initialize_webdriver, prepare_next_attempt, restart_browser, save_html, search_google
+from .custom_chrome_driver import CustomChromeDriver
+from .process_row import process_row
+from .generate_linkedin_profiles import generate_linkedin_profiles_csv
 from ..general_utils.methods import normalize_string, create_folder, sleep_print
-    
-def process_row(profile_row, driver, linkedin_profiles_df, full_path, total_linkedin_requests, successful_linkedin_requests, total_profiles_scraped, successful_profiles_scraped):
+from ..config import DATA_PATH
 
-    if profile_row.to_scrape == 0 or not pd.isna(profile_row.failed_cause):
-        if profile_row.scraped_success_time:
-            print("→ Name was already scraped, skipping...")
-        else:
-            print(f"→ Last Google search resulted in {profile_row.failed_cause}, skipping...")
-    
-    else:
-        # 1 = TRUE
-
-        sleep_print(2, '→ sleeping 2 seconds...')
-
-        # TODO:
-        # handle the exception: selenium.common.exceptions.WebDriverException: Message: unknown error: net::ERR_NAME_NOT_RESOLVED
-        print("→ Requesting 'www.google.com.br'.")
-        driver.get('https://www.google.com.br')
-        sleep_print(random.uniform(2, 3), '→ sleeping between 2 and 3 seconds...')
-
-        search_query = f'{profile_row.name_variation} ufabc linkedin'# using "ufabc" inside double quotes made some correct search results disappear, I really don't understand why
-
-        search_google(driver, search_query)
-        sleep_print(random.uniform(2, 3), '→ sleeping between 2 and 3 seconds...')
-
-        linkedin_links = get_valid_linkedin_links(driver, profile_row.full_name)
-        
-        # TODO:
-        # when we enter the webpage of that person, the name CAN BE DIFFERENT from what appeared on google search result!!!!!!
-        # I need to handle this!!!
-        # Example: name variation #1065, her name in the english profile is different than her name in the portuguese profile!!!!
-
-        for link_idx, link in enumerate(linkedin_links):
-            # Great, we found some Linkedin profiles to analyze!
-            # But before we jump into it, we need to check one more thing:
-            # If the profile URL was already scraped by ANOTHER name, we try the next link in linkedin_links (if it exists).
-            
-            profile_already_scraped = check_profile_already_scraped(link, linkedin_profiles_df, profile_row.linkedin_url)
-            linkedin_url, linkedin_id = get_linkedin_url_id(link)
-
-            if profile_already_scraped:
-
-                if link_idx == len(linkedin_links)-1: 
-                    print(f"→ Profile id '{linkedin_id}' was already scraped by another name, there are no other profiles to try, skipping...")
-                    linkedin_profiles_df.loc[linkedin_profiles_df.loc[:, 'uid'] == profile_row.uid, 'to_scrape'] = 0
-
-                    add_failed_cause(linkedin_profiles_df, profile_row.uid, 'no_linkedin_profile_available_for_namesake')
-                else:
-                    print(f"→ Profile id '{linkedin_id}' was already scraped by another name, trying the next profile.")
-                continue
-                
-            else:
-                # The profile URL wasn't scraped by any other name, so we can finally request it!
-                total_profiles_scraped += 1
-
-                # We will attempt to scrape it a few times.
-                for attempt in range(2):
-                    page_source = click_link(driver, link, linkedin_url)
-                    success, problems = get_page_problems(page_source)
-                    total_linkedin_requests += 1
-                    sleep_print(random.uniform(5, 7), '→ sleeping between 5 and 7 seconds...')
-
-                    # TODO
-                    # If it's the xth unsucessful reply in a row, do something
-
-                    if success:
-                        # When it succeeds we want to save: the time it was scraped, linkedin URL, if the person studied at UFABC or not.
-                        # The current name variation should be marked so that it doesn't get scraped again.
-                        successful_linkedin_requests += 1
-                        successful_profiles_scraped += 1
-
-                        studied_at_ufabc = check_studied_at_universities(page_source, ['UFABC', 'Universidade Federal do ABC'])
-                        
-                        linkedin_profiles_df.loc[linkedin_profiles_df.loc[:, 'uid'] == profile_row.uid, 'to_scrape'] = 0
-                        linkedin_profiles_df.loc[linkedin_profiles_df.loc[:, 'uid'] == profile_row.uid, 'linkedin_url'] = driver.current_url.split("?")[0]
-                        linkedin_profiles_df.loc[linkedin_profiles_df.loc[:, 'uid'] == profile_row.uid, 'scraped_success_time'] = datetime.now()
-
-                        if not studied_at_ufabc:
-                            print("→ Succesful request, but the person did not study at UFABC.")
-                            linkedin_profiles_df.loc[linkedin_profiles_df.loc[:, 'uid'] == profile_row.uid, 'failed_cause'] = f"(no_school_relationship)" 
-                            # TODO: strange name and might need to add the failed cause to a list of previous failed causes
-                        else:
-                            # TODO:
-                            # if it's the full name variation, we don't want to scrape any other name variations for that name
-                            # because all other name variations are less specific than the full name, 
-                            # hence they will bring more results which are LESS relevant!
-
-                            print("→ Successful request and the person studied at UFABC!")
-                            # linkedin_profiles_df.loc[linkedin_profiles_df.loc[:, 'name_id'] == profile_row.name_id, 'to_scrape'] = 0 didn't work as I expected
-
-                        saved_html_path = save_html(full_path, page_source, profile_row.uid, profile_row.name_variation, problems)
-                    
-                        linkedin_profiles_df.loc[linkedin_profiles_df.loc[:, 'uid'] == profile_row.uid, 'html_path'] = saved_html_path
-                        break # we don't to attempt to scrape the same profile again
-                
-                    else:
-                        if attempt == 0:
-                            # If it fails, we return to the previous page and click on the link again.
-                            # But the elements in the browser may have changed position (changed DOM), so we need to relocate the link
-                            # with the href=linkedin_url that we just tried to access.
-
-                            link = prepare_next_attempt(driver, linkedin_id)
-                            sleep_print(random.uniform(2, 3), '→ sleeping between 2 and 3 seconds...')
-                            
-                            continue
-                        else:
-                            # When it fails for good we want to save some things: fail reason and the URL that it tried to access.
-                            print("→ Failed request, not attempting again!")
-
-                            linkedin_profiles_df.loc[linkedin_profiles_df.loc[:, 'uid'] == profile_row.uid, 'linkedin_url'] = linkedin_url
-
-                            add_failed_cause(linkedin_profiles_df, profile_row.uid, problems)                                
-                
-                
-                print(f"→ So far {successful_linkedin_requests} out of {total_linkedin_requests} requests to Linkedin were successful.")
-                print(f"→ So far {successful_profiles_scraped} out of {total_profiles_scraped} profiles were succesfully scrapped.")
-                sleep_print(15, '→ sleeping 15 seconds...')
-                break
-            
-        if not linkedin_links:
-            print("→ No LinkedIn search results to access.")
-
-            linkedin_profiles_df.loc[linkedin_profiles_df.loc[:, 'uid'] == profile_row.uid, 'to_scrape'] = 0
-
-            add_failed_cause(linkedin_profiles_df, profile_row.uid, 'no_linkedin_url')
-
-    return linkedin_profiles_df, total_linkedin_requests, successful_linkedin_requests, total_profiles_scraped, successful_profiles_scraped
-
-
-def main(linkedin_profiles_df, save_path, linkedin_profiles_path):
+def main(linkedin_profiles_df, save_path, linkedin_profiles_path, unavailable_profiles_path, non_ufabc_students_path):
     start_total_time = timer()
-
     total_name_variations = len(linkedin_profiles_df)
-
     total_linkedin_requests = 0
     successful_linkedin_requests = 0
-
     total_profiles_scraped = 0
     successful_profiles_scraped = 0
 
-    driver = initialize_webdriver()
+    driver = CustomChromeDriver(headless=False)
 
     iter = 1
     for profile_row in linkedin_profiles_df.itertuples():
         start_iter_time = timer()
 
-        if (total_linkedin_requests % 20 == 0 or total_linkedin_requests % 21 == 0) and total_linkedin_requests != 0: # restart webdriver
-        # TODO: fix -> won't work as planned because sometimes 2 requests are sent to linkedin in a row
-            driver = restart_browser()
+        if (total_linkedin_requests % 20 == 0 or total_linkedin_requests % 21 == 0) and total_linkedin_requests != 0:
+            driver.restart()
 
         print("\n\n\n****************************************************************")
         print(f"Trying to find LinkedIn profile of {profile_row.full_name}\n")
@@ -166,12 +35,23 @@ def main(linkedin_profiles_df, save_path, linkedin_profiles_path):
         full_path = f"{save_path}/{profile_row.name_id}_{normalize_string(profile_row.full_name)}"
         create_folder(full_path)
 
-        linkedin_profiles_df, total_linkedin_requests, successful_linkedin_requests, \
+        with open(unavailable_profiles_path, 'r') as file:
+            unavailable_profiles = json.load(file)
+
+        with open(non_ufabc_students_path, 'r') as file:
+            non_ufabc_students = json.load(file)
+
+        linkedin_profiles_df, unavailable_profiles, non_ufabc_students, total_linkedin_requests, successful_linkedin_requests, \
             total_profiles_scraped, successful_profiles_scraped \
-                = process_row(profile_row, driver, linkedin_profiles_df, full_path, 
+                = process_row(profile_row, driver, linkedin_profiles_df, unavailable_profiles, 
+                              non_ufabc_students, full_path, 
                             total_linkedin_requests, successful_linkedin_requests,
                             total_profiles_scraped, successful_profiles_scraped)
         linkedin_profiles_df.to_csv(linkedin_profiles_path, index=False, sep=',')
+        with open(f"{DATA_PATH / 'unavailable_profiles.json'}", 'w') as file:
+            json.dump(unavailable_profiles, file)
+        with open(f"{DATA_PATH / 'non_ufabc_students.json'}", 'w') as file:
+            json.dump(non_ufabc_students, file)
 
         iter_time = timer() - start_iter_time
         print(f"→ Iteration elapsed time: {iter_time:.2f}")
@@ -189,39 +69,32 @@ def main(linkedin_profiles_df, save_path, linkedin_profiles_path):
 
 
 if __name__ == "__main__":
-    print("\nBEGINNING LINKEDIN SCRAPING\n")
     current_dir = os.path.dirname(os.path.abspath(__file__)) # we don't know where the user will run the script from
-    save_path = os.path.join(current_dir, "../data/linkedin_profiles/profilesSelenium13")
-    linkedin_profiles_path = f'{save_path}/linkedin_profiles.csv'
+    names_list_path = DATA_PATH / 'names_list.txt'
+    if not os.path.exists(names_list_path):
+        raise Exception(f"No \"names_list.txt\" file to scrape on {DATA_PATH}.")
 
-    if not os.path.exists(linkedin_profiles_path):
-        create_folder(save_path)
+    print("\nBEGINNING LINKEDIN SCRAPING\n")
 
-        # Construct the file path
-        name_variations_path = os.path.join(current_dir, "../data/name_variations.csv")
 
-        name_variations_df = pd.read_csv(name_variations_path, sep=',')
-        linkedin_profiles_df = name_variations_df
+    unavailable_profiles_path = f"{DATA_PATH / 'unavailable_profiles.json'}"
+    if not os.path.exists(unavailable_profiles_path):
+        with open(unavailable_profiles_path, 'w') as file:
+            json.dump([], file)
 
-        linkedin_profiles_df['to_scrape'] = 1 # will track if it's still necessary to scrape this name variation
-            # 0 will be False, 1 will be True
-            # initially all name variations are going to be scraped, so they are naturally 1
+    non_ufabc_students_path = f"{DATA_PATH / 'non_ufabc_students.json'}"
+    if not os.path.exists(non_ufabc_students_path):
+        with open(non_ufabc_students_path, 'w') as file:
+            json.dump([], file)
 
-        linkedin_profiles_df['linkedin_url'] = '' # stores linkedin_url
-        linkedin_profiles_df['scraped_success_time'] = ''
-        linkedin_profiles_df['failed_cause'] = '' # stores every fail attempt cause
-        linkedin_profiles_df['html_path'] = '' # stores the path to the HTML file
-
-        # Sort profiles so that more specific name variations are scraped first (full name -> first and last name -> etc)
-        linkedin_profiles_df['Sort'] = linkedin_profiles_df.groupby('name_id').cumcount()
-        linkedin_profiles_df.sort_values(['Sort', 'name_id'], inplace=True)
-        linkedin_profiles_df.drop(columns=['Sort'], inplace=True)
-
-        print(f"Creating file '{linkedin_profiles_path}'.\n")
-        linkedin_profiles_df.to_csv(linkedin_profiles_path, index=False, sep=',')
-        sleep_print(1, "sleeping 1 secon...")
+    # Check if linkedin_profiles.csv exists
+    linkedin_profiles_path = DATA_PATH / 'linkedin_profiles.csv'
+    linkedin_profiles_csv_exists = os.path.exists(linkedin_profiles_path)
+    if not linkedin_profiles_csv_exists:
+        generate_linkedin_profiles_csv(names_list_path, linkedin_profiles_path)       
+        sleep_print(1, "sleeping 1 second...")
     else:
-        user_input = input(f"Looks like a scrapping process already started on '{save_path}'. Would you like to continue it? Type 'yes' to continue:\n> ")
+        user_input = input(f"Looks like a scrapping process already started on '{linkedin_profiles_path}'.\nWould you like to continue it? Type 'yes' to continue:\n> ")
         if user_input.lower() != 'yes':
             print('Exiting the scraper.')
             sys.exit(1)
@@ -238,5 +111,89 @@ if __name__ == "__main__":
             }
     linkedin_profiles_df = pd.read_csv(linkedin_profiles_path, sep=',', dtype=dtypes, parse_dates=['scraped_success_time'])
 
-    main(linkedin_profiles_df, save_path, linkedin_profiles_path)
+    main(linkedin_profiles_df, DATA_PATH, linkedin_profiles_path, unavailable_profiles_path, non_ufabc_students_path)
     
+
+
+# Error Handling:
+# It is always a good idea to anticipate potential issues and handle them appropriately. For instance, you have commented on a scenario where the internet connection may be lost during the execution. Python's exception handling allows you to handle these situations.
+
+# In your case, you could add a try-except block around the request_website function call to handle any exceptions related to network errors.
+
+# python
+# Copy code
+# try:
+#     driver = request_website(driver, 'https://www.google.com.br')
+# except Exception as e:
+#     print(f"Error when trying to access the website: {str(e)}")
+#     # Here you can add code to handle this error, like trying again, logging the error, or stopping the script
+
+
+
+
+# Adding Logging:
+# Logging is a very useful tool to track what's happening in your code. Python's built-in logging module makes it easy to add logging to your scripts. Here's a basic example of how to use it:
+
+# python
+# Copy code
+# import logging
+
+# logging.basicConfig(level=logging.INFO)
+
+# def main():
+#     logging.info("Starting script...")
+#     # your code here...
+#     logging.info("Script finished successfully.")
+
+# if __name__ == "__main__":
+#     main()
+# With logging, you can also print debug messages that only show up when you're debugging:
+
+# python
+# Copy code
+# logging.debug("This is a debug message.")
+# To see debug messages, you need to set the logging level to DEBUG when configuring logging:
+
+# python
+# Copy code
+# logging.basicConfig(level=logging.DEBUG)
+
+
+
+
+
+
+
+# Commenting Your Code and Writing Docstrings:
+# Good comments can be very helpful, but they can also be overused. As a general rule, your code should be self-explanatory. If you have to write a comment to explain what a piece of code does, it might be a sign that you should refactor that code into a function with a descriptive name.
+
+# Here's an example:
+
+# python
+# Copy code
+# # Before
+# # Get the first 10 items (this is a hotfix, will be removed in the next version)
+# items = all_items[:10]
+
+# # After
+# def get_first_n_items(items, n):
+#     """Return the first n items from the given list."""
+#     return items[:n]
+
+# items = get_first_n_items(all_items, 10)
+# You should also write docstrings for each function and class. Docstrings are a type of comment that explain what a function does, its parameters, and its return values. Here's an example:
+
+# python
+# Copy code
+# def add(a, b):
+#     """Add two numbers together.
+
+#     Parameters:
+#     a (int): The first number.
+#     b (int): The second number.
+
+#     Returns:
+#     int: The sum of a and b.
+#     """
+#     return a + b
+# Remember, these are suggestions. It's always a good idea to adapt guidelines to the needs and style of your specific project.
