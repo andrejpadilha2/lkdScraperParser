@@ -30,9 +30,6 @@ def check_link_title_name_subset_full_name(linkedin_link_title, full_name):
     names_in_full_name = full_name.split()
     names_in_full_name = [normalize_string(name) for name in names_in_full_name]
 
-    print(names_in_linkedin_link)
-    print(names_in_full_name)
-
     return is_subset(names_in_linkedin_link, names_in_full_name)
 
 def check_profile_name_subset_full_name(page_source, full_name):
@@ -83,9 +80,6 @@ def get_page_problems(page_source):
     
     return success, problems
 
-# TODO:
-# save the selenium find_element parameters in a config file, that way it's easier to configure the scraper if it changes
-# also create some custom exceptions to indicate that maybe the position/name of the elements have changed
 def get_valid_linkedin_link_elements(links, profile_full_name, unavailable_profiles, non_ufabc_student):
     """ Returns a list of linkedin link elements that:
     1) Are Linkedin profiles (linkedin.com/in/)

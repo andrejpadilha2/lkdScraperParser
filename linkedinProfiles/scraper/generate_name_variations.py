@@ -62,21 +62,21 @@ def generate_all_name_variations(input_names_path): #, output_names_path):
 
     return processed_names
 
-def generate_linkedin_profiles_csv(input_names_path, linkedin_profiles_path):
+def generate_name_variations_linkedin_csv(input_names_path, name_variations_linkedin_path):
 
     name_variations = generate_all_name_variations(input_names_path)
-    linkedin_profiles_df = pd.DataFrame(name_variations, columns=['uid', 'name_id', 'full_name', 'name_variation'])
+    name_variations_linkedin_df = pd.DataFrame(name_variations, columns=['uid', 'name_id', 'full_name', 'name_variation'])
 
-    linkedin_profiles_df['to_scrape'] = 1 # will track if it's still necessary to scrape this name variation
-    linkedin_profiles_df['linkedin_url'] = '' # stores linkedin_url
-    linkedin_profiles_df['scraped_success_time'] = ''
-    linkedin_profiles_df['failed_cause'] = '' # stores every fail attempt cause
-    linkedin_profiles_df['html_path'] = '' # stores the path to the HTML file
+    name_variations_linkedin_df['to_scrape'] = 1 # will track if it's still necessary to scrape this name variation
+    name_variations_linkedin_df['linkedin_url'] = '' # stores linkedin_url
+    name_variations_linkedin_df['scraped_success_time'] = ''
+    name_variations_linkedin_df['failed_cause'] = '' # stores every fail attempt cause
+    name_variations_linkedin_df['html_path'] = '' # stores the path to the HTML file
 
     # Sort profiles so that more specific name variations are scraped first (full name -> first and last name -> etc)
-    linkedin_profiles_df['Sort'] = linkedin_profiles_df.groupby('name_id').cumcount()
-    linkedin_profiles_df.sort_values(['Sort', 'name_id'], inplace=True)
-    linkedin_profiles_df.drop(columns=['Sort'], inplace=True)
+    name_variations_linkedin_df['Sort'] = name_variations_linkedin_df.groupby('name_id').cumcount()
+    name_variations_linkedin_df.sort_values(['Sort', 'name_id'], inplace=True)
+    name_variations_linkedin_df.drop(columns=['Sort'], inplace=True)
 
-    print(f"Creating file '{linkedin_profiles_path}'.\n")
-    linkedin_profiles_df.to_csv(linkedin_profiles_path, index=False, sep=',')
+    print(f"Creating file '{name_variations_linkedin_path}'.\n")
+    name_variations_linkedin_df.to_csv(name_variations_linkedin_path, index=False, sep=',')
