@@ -57,26 +57,7 @@ def generate_all_name_variations(input_names_path): #, output_names_path):
         name_variations = generate_name_variations(name)
         # Append each name variation to the output rows
         for name_variation in name_variations:
-            processed_names.append([uid, name_id, name, name_variation])
+            processed_names.append([uid, name_variation, name_id, name])
             uid += 1
 
     return processed_names
-
-def generate_name_variations_linkedin_csv(input_names_path, name_variations_linkedin_path):
-
-    name_variations = generate_all_name_variations(input_names_path)
-    name_variations_linkedin_df = pd.DataFrame(name_variations, columns=['uid', 'name_id', 'full_name', 'name_variation'])
-
-    name_variations_linkedin_df['to_scrape'] = 1 # will track if it's still necessary to scrape this name variation
-    name_variations_linkedin_df['linkedin_url'] = '' # stores linkedin_url
-    name_variations_linkedin_df['scraped_success_time'] = ''
-    name_variations_linkedin_df['failed_cause'] = '' # stores every fail attempt cause
-    name_variations_linkedin_df['html_path'] = '' # stores the path to the HTML file
-
-    # Sort profiles so that more specific name variations are scraped first (full name -> first and last name -> etc)
-    name_variations_linkedin_df['Sort'] = name_variations_linkedin_df.groupby('name_id').cumcount()
-    name_variations_linkedin_df.sort_values(['Sort', 'name_id'], inplace=True)
-    name_variations_linkedin_df.drop(columns=['Sort'], inplace=True)
-
-    print(f"Creating file '{name_variations_linkedin_path}'.\n")
-    name_variations_linkedin_df.to_csv(name_variations_linkedin_path, index=False, sep=',')
