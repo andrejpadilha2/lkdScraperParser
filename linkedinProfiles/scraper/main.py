@@ -6,7 +6,7 @@ from linkedinProfiles.scraper.config import NAMES_LIST_PATH
 def main():
     
     selenium_scraper = SeleniumScraper()
-    selenium_scraper.run()
+    selenium_scraper.start_scraper()
 
 if __name__ == "__main__":
     if not os.path.exists(NAMES_LIST_PATH):
