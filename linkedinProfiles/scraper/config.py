@@ -2,16 +2,17 @@ from ..config import DATA_PATH
 
 NAMES_LIST_PATH = DATA_PATH / 'names_list.txt'
 UNAVAILABLE_PROFILES_PATH = DATA_PATH / 'unavailable_profiles.json'
-NON_UFABC_STUDENTS_PATH = DATA_PATH / 'non_ufabc_students.json'
-NAME_VARIATIONS_LINKEDIN_PATH = DATA_PATH / 'name_variations_linkedin.csv'
+NON_UFABC_STUDENT_PROFILES_PATH = DATA_PATH / 'non_ufabc_student_profiles.json'
+SCRAPED_DATA_PATH = DATA_PATH / 'scraped_data.csv'
+SAVED_FOR_LATER_PROFILES_PATH = DATA_PATH / 'saved_for_later_profiles.json'
 
-NAME_VARIATIONS_LINKEDIN_COLUMNS = {
+SCRAPED_DATA_COLUMNS = {
     'uid': int,
+    'name_variation': str,
     'name_id': int,
     'full_name': str,
-    'name_variation': str,
     'to_scrape': int,
     'linkedin_url': str,
-    'failed_cause': str,
-    'html_path': str
+    'html_path': str,
+    'failed_cause': str
 }

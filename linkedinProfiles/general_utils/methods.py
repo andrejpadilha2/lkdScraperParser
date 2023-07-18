@@ -23,9 +23,9 @@ def google_search(search_term, api_key, cse_id, **kwargs):
 def create_folder(folder_name):
     if not os.path.exists(folder_name):
         os.makedirs(folder_name)
-        print(f"Created folder: {folder_name}.\n")
+        print(f"→ Created folder: {folder_name}.")
     else:
-        print(f"Folder already exists: {folder_name}.\n")
+        print(f"→ Folder already exists: {folder_name}.")
 
 def normalize_string(input_string):
     # Remove accents
