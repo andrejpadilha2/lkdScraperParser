@@ -7,6 +7,9 @@ import huaweisms.api.dialup
 import huaweisms.api.device
 
 def rotate_ip():
+    print("\n\n\n========================")
+    print(f"Rotating IP.")
+    print("========================\n\n\n")
     ip = get_ip_address()
     print("→ Current IP Address:", ip)
     
