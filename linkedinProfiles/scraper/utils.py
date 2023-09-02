@@ -1,4 +1,5 @@
 from bs4 import BeautifulSoup
+from linkedinProfiles.config import MANUAL_CAPTCHA
 
 from linkedinProfiles.parser.person import get_identification_card, parse_linkedin_name
 from ..general_utils.methods import normalize_string
@@ -53,8 +54,18 @@ def get_page_problems(page_source):
 
     if "captcha" in page_source:
         print("→ You hit a captcha page!")
-        problems += "captcha_"
-        success = 0
+        if MANUAL_CAPTCHA:
+            user_input = input(f"MANUAL_CAPTCHA is activated! Type 'solved' when you finish solving it or anything else to skip it:\n> ")
+            if user_input.lower() == 'solved':
+                print('→ Captcha manually solved.')
+            else:
+                print("→ Captcha wasn't solved!")
+                problems += "captcha_"
+                success = 0
+        else:
+            problems += "captcha_"
+            success = 0
+        
 
     if page_source.startswith("<html><head>\n    <script type=\"text/javascript\">\n"):
         print("→ You hit javascript obfuscated code!")
@@ -63,7 +74,7 @@ def get_page_problems(page_source):
     
     return success, problems
 
-def get_valid_linkedin_profile_elements(links, link_names, profile_full_name, unavailable_profiles, non_ufabc_student):
+def get_valid_linkedin_profile_elements(links, link_names, profile_full_name, unavailable_profiles=[], non_ufabc_student=[]):
     """ Returns a list of linkedin link elements that:
     1) The name of person in the profile link title is a subset of the person's full name
     2) Is an available profile

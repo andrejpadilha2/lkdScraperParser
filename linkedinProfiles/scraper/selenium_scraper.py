@@ -1,7 +1,8 @@
+import random
 from datetime import datetime
 from collections import deque
 from timeit import default_timer as timer
-from linkedinProfiles.config import HEADLESS
+from linkedinProfiles.config import HEADLESS, MANUAL_CAPTCHA
 
 from linkedinProfiles.general_utils.methods import sleep_print
 from linkedinProfiles.scraper.custom_chrome_driver import CustomChromeDriver
@@ -18,35 +19,40 @@ class SeleniumScraper:
 
         self.data_manager = DataManager()
         
-        self.total_name_variations = self.data_manager.get_count_scraped_data()
         self.total_linkedin_requests = 0
         self.successful_linkedin_requests = 0
         self.total_profiles_scraped = 0
         self.successful_profiles_scraped = 0
-        self.success_queue = deque(maxlen=10)
-        self.last_failed_scraped_entries = deque(maxlen=4)
-        self.name_variation_idx = 0
+        self.success_queue = deque(maxlen=4)
+        self.last_failed_scraped_entries = deque(maxlen=2)
         self.try_next_link = True
 
-        self.driver = CustomChromeDriver(headless=HEADLESS)
+        if MANUAL_CAPTCHA:
+            headless=False
+            load_images=True
+        else:
+            headless=HEADLESS
+            load_images=False
+        self.driver = CustomChromeDriver(load_images, headless=headless)
 
     def start_scraper(self):
         self.run()        
     
     def run(self):
-        for scraped_entry in self.data_manager.get_scraped_entries():
-            self.name_variation_idx += 1
-            
+        for scraped_entry in self.data_manager.get_scraped_entries():         
             ip_blocked = self.check_ip_blocked()
             if ip_blocked:
-                self.run_last_scraped_entries()
+                pass
+                # self.run_last_scraped_entries()
                 
             print("\n\n\n****************************************************************")
             print(f"Trying to find LinkedIn profile of {scraped_entry.full_name}\n")
             print("\n---------------------------------------------")
-            print(f"Iter {self.name_variation_idx}/{self.total_name_variations} - Testing name variation #{scraped_entry.uid}: {scraped_entry.name_variation}")
+            print(f"Iter {self.data_manager.name_variation_idx}/{self.data_manager.total_name_variations} - Testing name variation #{scraped_entry.uid}: {scraped_entry.name_variation}")
            
             self.process_entry(scraped_entry)
+
+            # self.driver.restart()
 
     def run_last_scraped_entries(self):
         for scraped_entry in self.last_failed_scraped_entries.copy():         
@@ -55,6 +61,10 @@ class SeleniumScraper:
             print("\n---------------------------------------------")
             print(f"Repeated iteration - Testing name variation #{scraped_entry.uid}: {scraped_entry.name_variation}")
             self.process_entry(scraped_entry)
+
+        # I don't to retry the "last_failed_scraped_entries" if they fail yet again, so we will restart it
+        self.success_queue = deque(maxlen=4)
+        self.last_failed_scraped_entries = deque(maxlen=2)
 
     def process_entry(self, scraped_entry):
         start_iter_time = timer()
@@ -74,16 +84,16 @@ class SeleniumScraper:
             self.search_name_variation_online(scraped_entry)
 
     def search_name_variation_online(self, scraped_entry):
-        # sleep_print(2, '→ sleeping 2 seconds...')
+        sleep_print(2, '→ sleeping 2 seconds...')
 
         self.driver.request_website('https://www.google.com.br')
-        # sleep_print(random.uniform(2, 3), '→ sleeping between 2 and 3 seconds...')
+        sleep_print(random.uniform(0.5, 1.5), '→ sleeping between 0.5 and 1.5 seconds...')
 
         # using "ufabc" inside double quotes made some correct search results disappear, 
         # I really don't understand why
         search_query = f'{scraped_entry.name_variation} ufabc linkedin'
         self.driver.search_google(search_query)
-        # sleep_print(random.uniform(2, 3), '→ sleeping between 2 and 3 seconds...')
+        sleep_print(random.uniform(0.5, 1.5), '→ sleeping between 0.5 and 1.5 seconds...')
 
         lp_link_elements, lp_link_names = self.driver.find_linkedin_profile_link_elements()
         valid_lp_link_elements = get_valid_linkedin_profile_elements(
@@ -110,9 +120,10 @@ class SeleniumScraper:
                 self.total_profiles_scraped += 1
                 self.request_linkedin_profile(link, linkedin_url, scraped_entry)
 
+
                 print(f"→ So far {self.successful_linkedin_requests} out of {self.total_linkedin_requests} requests to Linkedin were successful.")
                 print(f"→ So far {self.successful_profiles_scraped} out of {self.total_profiles_scraped} profiles were succesfully scrapped.")
-                # sleep_print(15, '→ sleeping 15 seconds...')
+                sleep_print(random.uniform(4, 6), '→ sleeping between 4 and 6 seconds...')
 
                 if not self.try_next_link:
                     break
@@ -151,9 +162,13 @@ class SeleniumScraper:
                 self.total_linkedin_requests += 1
 
                 self.driver.open_link_new_tab(link, linkedin_url)
-                # sleep_print(random.uniform(5, 7), '→ sleeping between 5 and 7 seconds...')
+                sleep_print(random.uniform(5, 7), '→ sleeping between 1 and 2 seconds...')
+                print("→ Scrolling to bottom.")
+                self.driver.scroll_to_bottom()
+
                 page_source = self.driver.page_source
                 is_successful_request, problems = get_page_problems(page_source)
+                page_source = self.driver.page_source
 
                 if is_successful_request:
                     print("→ Successful request!")
@@ -167,7 +182,6 @@ class SeleniumScraper:
                     if attempt == 0:
                         # If it fails, we return to the main tab and click on the link again.
                         print("→ Failed request but will attempt again now!")
-                        # sleep_print(random.uniform(2, 3), '→ sleeping between 2 and 3 seconds...')
                     else:
                         self.success_queue.append(is_successful_request)
                         self.last_failed_scraped_entries.append(scraped_entry)
@@ -210,11 +224,11 @@ class SeleniumScraper:
             self.data_manager.update_unavailable_profiles(linkedin_url)         
 
     def check_ip_blocked(self):
-        if len(self.success_queue) == 10 and sum(self.success_queue) <= 6:
-            print("\n\n→ High failure rate in the last 10 requests, rotating IP and restarting driver!")
-            self.success_queue = deque(maxlen=10)
+        if len(self.success_queue) == 4 and sum(self.success_queue) < 3:
+            print("\n\n→ High failure rate in the last 4 requests, rotating IP and restarting driver!")
             self.driver.restart()
-            self.driver.rotate_ip()
+            self.success_queue = deque(maxlen=4)
+            self.last_failed_scraped_entries = deque(maxlen=2)
             return True
         else:
             return False
