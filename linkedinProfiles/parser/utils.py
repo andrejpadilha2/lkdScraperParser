@@ -1,3 +1,5 @@
+import pandas as pd
+
 def generate_new_id(df, id_column):
     if df.empty:
         return 0
@@ -15,5 +17,5 @@ def get_or_add_id(entity, df, name_column, id_column):
         # if entity doesn't exist, generate a new ID, add it to DataFrame, and return the ID and DataFrame
         new_id = generate_new_id(df, id_column)  # function to generate new unique id
         entity[id_column] = new_id
-        df = df.append(entity, ignore_index=True)
+        df = pd.concat([df, pd.DataFrame([entity])], ignore_index=True)
         return new_id, df

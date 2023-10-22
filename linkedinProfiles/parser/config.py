@@ -1,15 +1,15 @@
 from pathlib import Path
 
-PROFILES_FOLDER_NAME = 'profilesSelenium12'  # << change only this!!!
+PROFILES_FOLDER_NAME = 'profilesPosCompAlumniUFABC'  # << change only this!!!
 
 
 
 # Base path
-BASE_PATH = Path(__file__).resolve().parent.parent
-DATA_PATH = BASE_PATH / 'data' / 'linkedin_profiles' / PROFILES_FOLDER_NAME
+BASE_PATH = Path(__file__).resolve().parent.parent.parent
+DATA_PATH = BASE_PATH / 'data' / 'parsed' / PROFILES_FOLDER_NAME
 
 # File paths
-LINKEDIN_PROFILES_PATH = DATA_PATH / 'linkedin_profiles.csv'
+LINKEDIN_PROFILES_PATH = DATA_PATH / 'scraped_data.csv'
 PERSON_PATH = DATA_PATH / 'person.csv'
 SCHOOL_PATH = DATA_PATH / 'school.csv'
 EDUCATION_PATH = DATA_PATH / 'education.csv'
