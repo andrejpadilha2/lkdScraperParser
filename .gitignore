@@ -6,6 +6,6 @@ linkedinProfiles/utils/names_list.txt
 *.csv
 *.html
 names_list*
-data*
+data/*
 linkedinProfiles/old/*
 *test_data*
